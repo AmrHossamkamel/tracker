@@ -119,6 +119,9 @@ export default function Dashboard() {
       {/* Hero Section */}
       <section id="overview" className="py-16 bg-gradient-to-b from-background to-secondary/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="mb-8">
+            <h1 className="text-5xl md:text-6xl font-bold text-primary mb-4">Mohammed Hossam</h1>
+          </div>
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
             Track Your Website Visitors
             <span className="text-primary"> Effortlessly</span>
