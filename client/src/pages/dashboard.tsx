@@ -42,22 +42,7 @@ export default function Dashboard() {
     }
   });
 
-  // Track current page visit on component mount (only once per session)
-  useEffect(() => {
-    const sessionKey = 'visitor_tracked';
-    const hasTracked = sessionStorage.getItem(sessionKey);
-    
-    if (!hasTracked) {
-      trackVisitorMutation.mutate({
-        page: window.location.pathname,
-        referrer: document.referrer,
-        userAgent: navigator.userAgent,
-      });
-      
-      // Mark as tracked for this session
-      sessionStorage.setItem(sessionKey, 'true');
-    }
-  }, []);
+  // Removed automatic visitor tracking - only track when API is called manually
 
   const handleFetchData = () => {
     queryClient.invalidateQueries({ queryKey: ['/api/visitors/count'] });
