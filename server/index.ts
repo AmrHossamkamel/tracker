@@ -1,8 +1,19 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Enable CORS for cross-origin requests
+app.use(cors({ 
+  origin: "*", // أو حط دومين الووردبريس بتاعك هنا
+  methods: ["POST", "GET", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+// Parse text/plain for sendBeacon requests (no preflight)
+app.use(express.text({ type: "text/plain" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

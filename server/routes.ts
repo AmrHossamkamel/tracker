@@ -10,8 +10,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const startTime = Date.now();
       
+      // Handle both JSON and text/plain (sendBeacon) requests
+      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      
       // Validate request body
-      const validatedData = trackVisitorSchema.parse(req.body);
+      const validatedData = trackVisitorSchema.parse(body);
       
       // Extract IP from request if not provided
       const ip = validatedData.ip || req.ip || req.connection.remoteAddress || 'unknown';
