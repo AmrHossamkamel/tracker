@@ -241,9 +241,9 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Today</p>
-                    <p className="text-3xl font-bold text-foreground" data-testid="stat-today">
+                    <div className="text-3xl font-bold text-foreground" data-testid="stat-today">
                       {isLoading ? <Skeleton className="h-8 w-16" /> : formatNumber(stats.today)}
-                    </p>
+                    </div>
                   </div>
                   <div className="w-12 h-12 bg-chart-1/10 rounded-full flex items-center justify-center">
                     <i className="fas fa-calendar-day text-chart-1"></i>
@@ -261,9 +261,9 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">This Week</p>
-                    <p className="text-3xl font-bold text-foreground" data-testid="stat-week">
+                    <div className="text-3xl font-bold text-foreground" data-testid="stat-week">
                       {isLoading ? <Skeleton className="h-8 w-16" /> : formatNumber(stats.week)}
-                    </p>
+                    </div>
                   </div>
                   <div className="w-12 h-12 bg-chart-2/10 rounded-full flex items-center justify-center">
                     <i className="fas fa-calendar-week text-chart-2"></i>
@@ -281,9 +281,9 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">This Month</p>
-                    <p className="text-3xl font-bold text-foreground" data-testid="stat-month">
+                    <div className="text-3xl font-bold text-foreground" data-testid="stat-month">
                       {isLoading ? <Skeleton className="h-8 w-16" /> : formatNumber(stats.month)}
-                    </p>
+                    </div>
                   </div>
                   <div className="w-12 h-12 bg-chart-3/10 rounded-full flex items-center justify-center">
                     <i className="fas fa-calendar-alt text-chart-3"></i>
@@ -301,9 +301,9 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">This Year</p>
-                    <p className="text-3xl font-bold text-foreground" data-testid="stat-year">
+                    <div className="text-3xl font-bold text-foreground" data-testid="stat-year">
                       {isLoading ? <Skeleton className="h-8 w-16" /> : formatNumber(stats.year)}
-                    </p>
+                    </div>
                   </div>
                   <div className="w-12 h-12 bg-chart-4/10 rounded-full flex items-center justify-center">
                     <i className="fas fa-calendar text-chart-4"></i>
