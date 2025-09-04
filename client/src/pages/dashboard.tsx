@@ -42,13 +42,21 @@ export default function Dashboard() {
     }
   });
 
-  // Track current page visit on component mount
+  // Track current page visit on component mount (only once per session)
   useEffect(() => {
-    trackVisitorMutation.mutate({
-      page: window.location.pathname,
-      referrer: document.referrer,
-      userAgent: navigator.userAgent,
-    });
+    const sessionKey = 'visitor_tracked';
+    const hasTracked = sessionStorage.getItem(sessionKey);
+    
+    if (!hasTracked) {
+      trackVisitorMutation.mutate({
+        page: window.location.pathname,
+        referrer: document.referrer,
+        userAgent: navigator.userAgent,
+      });
+      
+      // Mark as tracked for this session
+      sessionStorage.setItem(sessionKey, 'true');
+    }
   }, []);
 
   const handleFetchData = () => {
