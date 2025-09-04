@@ -18,21 +18,21 @@ Preferred communication style: Simple, everyday language.
 
 ## Backend Architecture
 - **Framework**: Express.js with TypeScript for the REST API server
-- **Database Layer**: Drizzle ORM configured for PostgreSQL with type-safe database operations
-- **Storage Pattern**: Abstract storage interface (IStorage) with both in-memory and database implementations
+- **Storage Layer**: JsonFileStorage implementation with file-based persistence
+- **Storage Pattern**: Abstract storage interface (IStorage) with JSON file and in-memory implementations
 - **API Design**: RESTful endpoints for visitor tracking and analytics data retrieval
 - **Middleware**: Custom logging middleware for API request monitoring
 
 ## Data Storage Solutions
-- **Primary Database**: PostgreSQL configured through Neon serverless platform
-- **ORM**: Drizzle ORM for type-safe database interactions and migrations
+- **Primary Storage**: JSON file-based storage system using JsonFileStorage class
+- **Storage Location**: All data is stored in `data/visitors_data.json` file
 - **Schema Management**: Shared schema definitions between frontend and backend using Zod
-- **Session Storage**: PostgreSQL-based session storage using connect-pg-simple
+- **Data Persistence**: Automatic file-based persistence with atomic write operations
 
-## Database Schema
-- **Users Table**: Basic user management with username/password authentication
-- **Visitors Table**: Comprehensive visitor tracking including page visits, referrers, user agents, IP addresses, and timestamps
-- **Analytics Support**: Schema designed for time-based analytics queries and visitor count aggregations
+## Data Schema
+- **Users Data**: Basic user management stored as key-value pairs in JSON format
+- **Visitors Data**: Comprehensive visitor tracking including page visits, referrers, user agents, IP addresses, and timestamps
+- **Analytics Support**: In-memory processing of JSON data for time-based analytics and visitor count aggregations
 
 ## API Structure
 - **Visitor Tracking**: POST `/api/visitors/track` - Records visitor interactions with validation
@@ -55,10 +55,10 @@ Preferred communication style: Simple, everyday language.
 - **Charts**: Recharts integration for data visualization capabilities
 
 ## Backend Dependencies
-- **Database**: Neon PostgreSQL serverless database platform
-- **ORM**: Drizzle ORM for database operations and schema management
-- **Validation**: Zod for runtime type checking and data validation
-- **Session Management**: express-session with connect-pg-simple for PostgreSQL session storage
+- **File System**: Node.js built-in fs/promises for JSON file operations
+- **Data Validation**: Zod for runtime type checking and data validation
+- **Storage Pattern**: Abstract IStorage interface with JsonFileStorage implementation
+- **Session Management**: In-memory session management suitable for single-instance applications
 
 ## Development Tools
 - **Build System**: Vite for fast development and optimized production builds
