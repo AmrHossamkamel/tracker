@@ -1,0 +1,658 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Analytics API - Dashboard & Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    popover: {
+                        DEFAULT: "var(--popover)",
+                        foreground: "var(--popover-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                    chart: {
+                        "1": "var(--chart-1)",
+                        "2": "var(--chart-2)",
+                        "3": "var(--chart-3)",
+                        "4": "var(--chart-4)",
+                        "5": "var(--chart-5)",
+                    }
+                },
+                fontFamily: {
+                    sans: ["Inter", "system-ui", "sans-serif"],
+                    mono: ["Fira Code", "monospace"],
+                }
+            },
+        }
+    };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --radius: 0.5rem;
+            --background: hsl(210 40% 98%);
+            --foreground: hsl(222.2 84% 4.9%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222.2 84% 4.9%);
+            --popover: hsl(0 0% 100%);
+            --popover-foreground: hsl(222.2 84% 4.9%);
+            --primary: hsl(221.2 83.2% 53.3%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(210 40% 96%);
+            --secondary-foreground: hsl(222.2 84% 4.9%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215.4 16.3% 46.9%);
+            --accent: hsl(210 40% 96%);
+            --accent-foreground: hsl(222.2 84% 4.9%);
+            --destructive: hsl(0 84.2% 60.2%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(214.3 31.8% 91.4%);
+            --input: hsl(214.3 31.8% 91.4%);
+            --ring: hsl(221.2 83.2% 53.3%);
+            --chart-1: hsl(12 76% 61%);
+            --chart-2: hsl(173 58% 39%);
+            --chart-3: hsl(197 37% 24%);
+            --chart-4: hsl(43 74% 66%);
+            --chart-5: hsl(27 87% 67%);
+        }
+
+        .dark {
+            --background: hsl(222.2 84% 4.9%);
+            --foreground: hsl(210 40% 98%);
+            --card: hsl(222.2 84% 4.9%);
+            --card-foreground: hsl(210 40% 98%);
+            --popover: hsl(222.2 84% 4.9%);
+            --popover-foreground: hsl(210 40% 98%);
+            --primary: hsl(217.2 91.2% 59.8%);
+            --primary-foreground: hsl(222.2 84% 4.9%);
+            --secondary: hsl(217.2 32.6% 17.5%);
+            --secondary-foreground: hsl(210 40% 98%);
+            --muted: hsl(217.2 32.6% 17.5%);
+            --muted-foreground: hsl(215 20.2% 65.1%);
+            --accent: hsl(217.2 32.6% 17.5%);
+            --accent-foreground: hsl(210 40% 98%);
+            --destructive: hsl(0 62.8% 30.6%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(217.2 32.6% 17.5%);
+            --input: hsl(217.2 32.6% 17.5%);
+            --ring: hsl(224.3 76.3% 94.1%);
+            --chart-1: hsl(220 70% 50%);
+            --chart-2: hsl(160 60% 45%);
+            --chart-3: hsl(30 80% 55%);
+            --chart-4: hsl(280 65% 60%);
+            --chart-5: hsl(340 75% 55%);
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--background);
+            color: var(--foreground);
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .code-block {
+            background: hsl(220 13% 18%);
+            border-radius: var(--radius);
+            overflow-x: auto;
+        }
+
+        .endpoint-badge {
+            background: linear-gradient(135deg, var(--primary), hsl(221.2 83.2% 63.3%));
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground min-h-screen">
+    <!-- Header -->
+    <header class="bg-card border-b border-border shadow-sm sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                            <i class="fas fa-chart-line text-primary-foreground text-sm"></i>
+                        </div>
+                        <h1 class="text-xl font-semibold text-foreground">Visitor Analytics API</h1>
+                    </div>
+                </div>
+                <nav class="hidden md:flex space-x-6">
+                    <a href="#overview" class="text-muted-foreground hover:text-foreground transition-colors">Overview</a>
+                    <a href="#demo" class="text-muted-foreground hover:text-foreground transition-colors">Live Demo</a>
+                    <a href="#documentation" class="text-muted-foreground hover:text-foreground transition-colors">Documentation</a>
+                    <a href="#dashboard" class="text-muted-foreground hover:text-foreground transition-colors">Dashboard</a>
+                </nav>
+                <button class="md:hidden p-2 rounded-md hover:bg-accent">
+                    <i class="fas fa-bars text-muted-foreground"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="overview" class="py-16 bg-gradient-to-b from-background to-secondary/20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 class="text-4xl md:text-5xl font-bold text-foreground mb-6">
+                Track Your Website Visitors
+                <span class="text-primary">Effortlessly</span>
+            </h2>
+            <p class="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+                Simple REST API for tracking and analyzing website visitor data with real-time counts for daily, weekly, monthly, and yearly periods.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#demo" class="inline-flex items-center px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium">
+                    <i class="fas fa-play-circle mr-2"></i>
+                    Try Live Demo
+                </a>
+                <a href="#documentation" class="inline-flex items-center px-6 py-3 border border-border rounded-lg hover:bg-accent transition-colors font-medium">
+                    <i class="fas fa-book mr-2"></i>
+                    View Documentation
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Demo Section -->
+    <section id="demo" class="py-16 bg-card">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl font-bold text-foreground mb-4">Live Demo</h3>
+                <p class="text-muted-foreground">Test the API endpoint and see real visitor data</p>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-8">
+                <!-- API Tester -->
+                <div class="bg-background rounded-lg border border-border p-6">
+                    <h4 class="text-xl font-semibold mb-4 flex items-center">
+                        <i class="fas fa-terminal text-primary mr-2"></i>
+                        API Tester
+                    </h4>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-muted-foreground mb-2">Endpoint</label>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 bg-primary text-primary-foreground text-xs rounded font-mono">GET</span>
+                                <code class="flex-1 px-3 py-2 bg-muted rounded text-sm font-mono">/api/visitors/count</code>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-muted-foreground mb-2">Parameters</label>
+                            <select id="periodSelect" class="w-full px-3 py-2 border border-border rounded-lg bg-background focus:ring-2 focus:ring-ring focus:border-transparent">
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="year">This Year</option>
+                                <option value="all">All Periods</option>
+                            </select>
+                        </div>
+
+                        <button id="fetchDataBtn" class="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium">
+                            <i class="fas fa-paper-plane mr-2"></i>
+                            Get Visitor Count
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Response Display -->
+                <div class="bg-background rounded-lg border border-border p-6">
+                    <h4 class="text-xl font-semibold mb-4 flex items-center">
+                        <i class="fas fa-code text-chart-2 mr-2"></i>
+                        API Response
+                    </h4>
+                    
+                    <div id="responseContainer" class="code-block p-4 min-h-[200px]">
+                        <pre id="responseContent" class="text-sm text-gray-300 font-mono">
+{
+  "status": "success",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "data": {
+    "today": 147,
+    "week": 892,
+    "month": 3420,
+    "year": 28350
+  },
+  "metadata": {
+    "endpoint": "/api/visitors/count",
+    "period": "all",
+    "processing_time": "12ms"
+  }
+}
+                        </pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Dashboard Section -->
+    <section id="dashboard" class="py-16 bg-secondary/20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl font-bold text-foreground mb-4">Visitor Analytics Dashboard</h3>
+                <p class="text-muted-foreground">Real-time visitor statistics and trends</p>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-muted-foreground">Today</p>
+                            <p class="text-3xl font-bold text-foreground" data-bind="stats.today">147</p>
+                        </div>
+                        <div class="w-12 h-12 bg-chart-1/10 rounded-full flex items-center justify-center">
+                            <i class="fas fa-calendar-day text-chart-1"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <span class="text-chart-1 font-medium">+12%</span>
+                        <span class="text-muted-foreground ml-1">from yesterday</span>
+                    </div>
+                </div>
+
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-muted-foreground">This Week</p>
+                            <p class="text-3xl font-bold text-foreground" data-bind="stats.week">892</p>
+                        </div>
+                        <div class="w-12 h-12 bg-chart-2/10 rounded-full flex items-center justify-center">
+                            <i class="fas fa-calendar-week text-chart-2"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <span class="text-chart-2 font-medium">+8%</span>
+                        <span class="text-muted-foreground ml-1">from last week</span>
+                    </div>
+                </div>
+
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-muted-foreground">This Month</p>
+                            <p class="text-3xl font-bold text-foreground" data-bind="stats.month">3,420</p>
+                        </div>
+                        <div class="w-12 h-12 bg-chart-3/10 rounded-full flex items-center justify-center">
+                            <i class="fas fa-calendar-alt text-chart-3"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <span class="text-chart-3 font-medium">+15%</span>
+                        <span class="text-muted-foreground ml-1">from last month</span>
+                    </div>
+                </div>
+
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-muted-foreground">This Year</p>
+                            <p class="text-3xl font-bold text-foreground" data-bind="stats.year">28,350</p>
+                        </div>
+                        <div class="w-12 h-12 bg-chart-4/10 rounded-full flex items-center justify-center">
+                            <i class="fas fa-calendar text-chart-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <span class="text-chart-4 font-medium">+23%</span>
+                        <span class="text-muted-foreground ml-1">from last year</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Placeholder -->
+            <div class="bg-card rounded-lg border border-border p-6">
+                <h4 class="text-lg font-semibold mb-4">Visitor Trends</h4>
+                <div class="h-64 bg-muted/20 rounded-lg flex items-center justify-center">
+                    <div class="text-center">
+                        <i class="fas fa-chart-line text-4xl text-muted-foreground mb-2"></i>
+                        <p class="text-muted-foreground">Chart visualization would be implemented here</p>
+                        <p class="text-sm text-muted-foreground mt-1">Using libraries like Chart.js or D3.js</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- API Documentation -->
+    <section id="documentation" class="py-16 bg-card">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl font-bold text-foreground mb-4">API Documentation</h3>
+                <p class="text-muted-foreground">Complete reference for implementing visitor tracking</p>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- Endpoints -->
+                <div class="lg:col-span-2 space-y-8">
+                    <!-- Get Visitor Count -->
+                    <div class="bg-background rounded-lg border border-border p-6">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <span class="px-3 py-1 bg-primary text-primary-foreground text-sm rounded font-mono">GET</span>
+                            <h4 class="text-lg font-semibold">/api/visitors/count</h4>
+                        </div>
+                        <p class="text-muted-foreground mb-4">Retrieve visitor counts for specified time periods</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <h5 class="font-medium mb-2">Query Parameters</h5>
+                                <div class="bg-muted/30 rounded p-3 text-sm">
+                                    <div class="grid grid-cols-3 gap-4 font-medium text-muted-foreground border-b border-border pb-2 mb-2">
+                                        <span>Parameter</span>
+                                        <span>Type</span>
+                                        <span>Description</span>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-4 py-1">
+                                        <code class="text-primary">period</code>
+                                        <span class="text-muted-foreground">string</span>
+                                        <span class="text-muted-foreground">today, week, month, year, all</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h5 class="font-medium mb-2">Example Request</h5>
+                                <div class="code-block p-3">
+                                    <pre class="text-sm text-gray-300 font-mono">curl -X GET "https://your-api.com/api/visitors/count?period=today" \
+  -H "Content-Type: application/json"</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Track Visitor -->
+                    <div class="bg-background rounded-lg border border-border p-6">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <span class="px-3 py-1 bg-chart-2 text-white text-sm rounded font-mono">POST</span>
+                            <h4 class="text-lg font-semibold">/api/visitors/track</h4>
+                        </div>
+                        <p class="text-muted-foreground mb-4">Record a new visitor to your website</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <h5 class="font-medium mb-2">Request Body</h5>
+                                <div class="code-block p-3">
+                                    <pre class="text-sm text-gray-300 font-mono">{
+  "user_id": "optional_user_identifier",
+  "page": "/home",
+  "referrer": "https://google.com",
+  "user_agent": "Mozilla/5.0...",
+  "ip": "192.168.1.1"
+}</pre>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h5 class="font-medium mb-2">Example Response</h5>
+                                <div class="code-block p-3">
+                                    <pre class="text-sm text-gray-300 font-mono">{
+  "status": "success",
+  "message": "Visitor tracked successfully",
+  "visitor_id": "v_1642248600_abc123"
+}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Reference -->
+                <div class="space-y-6">
+                    <div class="bg-background rounded-lg border border-border p-6">
+                        <h4 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-info-circle text-primary mr-2"></i>
+                            Quick Reference
+                        </h4>
+                        <div class="space-y-3 text-sm">
+                            <div>
+                                <span class="font-medium">Base URL:</span>
+                                <code class="block text-primary mt-1">https://your-api.com/api</code>
+                            </div>
+                            <div>
+                                <span class="font-medium">Authentication:</span>
+                                <span class="block text-muted-foreground mt-1">API Key (optional)</span>
+                            </div>
+                            <div>
+                                <span class="font-medium">Rate Limit:</span>
+                                <span class="block text-muted-foreground mt-1">1000 requests/hour</span>
+                            </div>
+                            <div>
+                                <span class="font-medium">Response Format:</span>
+                                <span class="block text-muted-foreground mt-1">JSON</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-background rounded-lg border border-border p-6">
+                        <h4 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-code text-chart-2 mr-2"></i>
+                            HTTP Status Codes
+                        </h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <code class="text-chart-2">200</code>
+                                <span class="text-muted-foreground">Success</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <code class="text-chart-4">400</code>
+                                <span class="text-muted-foreground">Bad Request</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <code class="text-chart-1">429</code>
+                                <span class="text-muted-foreground">Rate Limited</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <code class="text-destructive">500</code>
+                                <span class="text-muted-foreground">Server Error</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-background rounded-lg border border-border p-6">
+                        <h4 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-download text-chart-3 mr-2"></i>
+                            Implementation
+                        </h4>
+                        <p class="text-sm text-muted-foreground mb-3">Add visitor tracking to your website:</p>
+                        <div class="code-block p-3">
+                            <pre class="text-xs text-gray-300 font-mono">// JavaScript Integration
+fetch('/api/visitors/track', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    page: window.location.pathname
+  })
+});</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-muted/20 border-t border-border py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <p class="text-muted-foreground">
+                    © 2024 Visitor Analytics API. Built for modern web applications.
+                </p>
+                <div class="mt-4 flex justify-center space-x-6">
+                    <a href="#" class="text-muted-foreground hover:text-foreground transition-colors">
+                        <i class="fab fa-github"></i>
+                    </a>
+                    <a href="#" class="text-muted-foreground hover:text-foreground transition-colors">
+                        <i class="fas fa-book"></i>
+                    </a>
+                    <a href="#" class="text-muted-foreground hover:text-foreground transition-colors">
+                        <i class="fas fa-envelope"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Demo functionality
+        (function() {
+            const fetchDataBtn = document.getElementById('fetchDataBtn');
+            const periodSelect = document.getElementById('periodSelect');
+            const responseContent = document.getElementById('responseContent');
+            const responseContainer = document.getElementById('responseContainer');
+
+            // Mock data for demonstration
+            const mockData = {
+                today: { count: 147, change: '+12%' },
+                week: { count: 892, change: '+8%' },
+                month: { count: 3420, change: '+15%' },
+                year: { count: 28350, change: '+23%' },
+                all: {
+                    today: 147,
+                    week: 892,
+                    month: 3420,
+                    year: 28350
+                }
+            };
+
+            function formatResponse(period) {
+                const timestamp = new Date().toISOString();
+                const processingTime = Math.floor(Math.random() * 20) + 5;
+                
+                if (period === 'all') {
+                    return {
+                        status: 'success',
+                        timestamp: timestamp,
+                        data: mockData.all,
+                        metadata: {
+                            endpoint: '/api/visitors/count',
+                            period: period,
+                            processing_time: `${processingTime}ms`
+                        }
+                    };
+                } else {
+                    return {
+                        status: 'success',
+                        timestamp: timestamp,
+                        data: {
+                            [period]: mockData[period].count,
+                            change: mockData[period].change
+                        },
+                        metadata: {
+                            endpoint: '/api/visitors/count',
+                            period: period,
+                            processing_time: `${processingTime}ms`
+                        }
+                    };
+                }
+            }
+
+            fetchDataBtn.addEventListener('click', function() {
+                // TODO: Implement actual API call, this is just for demonstration
+                const selectedPeriod = periodSelect.value;
+                
+                // Show loading state
+                fetchDataBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Fetching...';
+                fetchDataBtn.disabled = true;
+                responseContainer.classList.add('loading');
+
+                // Simulate API call delay
+                setTimeout(() => {
+                    const response = formatResponse(selectedPeriod);
+                    responseContent.textContent = JSON.stringify(response, null, 2);
+                    
+                    // Reset button
+                    fetchDataBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Get Visitor Count';
+                    fetchDataBtn.disabled = false;
+                    responseContainer.classList.remove('loading');
+                    responseContainer.classList.add('fade-in');
+                    
+                    // Remove animation class after animation completes
+                    setTimeout(() => responseContainer.classList.remove('fade-in'), 300);
+                }, 1000);
+            });
+
+            // Smooth scrolling for navigation links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+
+            // Update stats periodically (demo purposes)
+            setInterval(() => {
+                // TODO: In real implementation, this would fetch actual data
+                document.querySelectorAll('[data-bind]').forEach(element => {
+                    const binding = element.getAttribute('data-bind');
+                    if (binding === 'stats.today') {
+                        const currentValue = parseInt(element.textContent);
+                        const newValue = currentValue + Math.floor(Math.random() * 3);
+                        element.textContent = newValue.toLocaleString();
+                    }
+                });
+            }, 30000); // Update every 30 seconds for demo
+        })();
+    </script>
+</body>
+</html>
