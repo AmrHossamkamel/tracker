@@ -1,7 +1,10 @@
-import { type User, type InsertUser, type Visitor, type InsertVisitor, type VisitorCounts } from "@shared/schema";
+import { type User, type InsertUser, type Visitor, type InsertVisitor, type VisitorCounts, users, visitors } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+import { eq, gte, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -208,4 +211,86 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new JsonFileStorage();
+export class DatabaseStorage implements IStorage {
+  private db;
+
+  constructor() {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL environment variable is required");
+    }
+    const sql = neon(process.env.DATABASE_URL);
+    this.db = drizzle(sql);
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await this.db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+
+  async trackVisitor(insertVisitor: InsertVisitor): Promise<Visitor> {
+    const result = await this.db.insert(visitors).values(insertVisitor).returning();
+    return result[0];
+  }
+
+  async getAllVisitors(): Promise<Visitor[]> {
+    return await this.db.select().from(visitors);
+  }
+
+  async getVisitorCounts(period?: 'today' | 'week' | 'month' | 'year'): Promise<VisitorCounts | Partial<VisitorCounts>> {
+    const now = new Date();
+    
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    if (period) {
+      let startDate: Date;
+      switch (period) {
+        case 'today': startDate = startOfToday; break;
+        case 'week': startDate = startOfWeek; break;
+        case 'month': startDate = startOfMonth; break;
+        case 'year': startDate = startOfYear; break;
+      }
+      
+      const result = await this.db.select({ count: sql<number>`count(*)::int` })
+        .from(visitors)
+        .where(gte(visitors.timestamp, startDate));
+      
+      return { [period]: result[0].count };
+    }
+
+    // Get all counts in parallel using SQL
+    const [todayResult, weekResult, monthResult, yearResult] = await Promise.all([
+      this.db.select({ count: sql<number>`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfToday)),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfWeek)),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfMonth)),
+      this.db.select({ count: sql<number>`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfYear)),
+    ]);
+
+    return {
+      today: todayResult[0].count,
+      week: weekResult[0].count,
+      month: monthResult[0].count,
+      year: yearResult[0].count,
+    };
+  }
+}
+
+// Use DatabaseStorage if DATABASE_URL is set, otherwise fall back to JsonFileStorage
+export const storage = process.env.DATABASE_URL 
+  ? new DatabaseStorage() 
+  : new JsonFileStorage();
