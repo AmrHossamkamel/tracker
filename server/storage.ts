@@ -5,6 +5,7 @@ import path from "path";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import { eq, gte, and, sql } from "drizzle-orm";
+import { MongoClient, type Db } from "mongodb";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -290,7 +291,132 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Use DatabaseStorage if DATABASE_URL is set, otherwise fall back to JsonFileStorage
-export const storage = process.env.DATABASE_URL 
-  ? new DatabaseStorage() 
-  : new JsonFileStorage();
+export class MongoDBStorage implements IStorage {
+  private client: MongoClient;
+  private db: Db;
+  private initialized: boolean = false;
+
+  constructor(connectionString: string) {
+    this.client = new MongoClient(connectionString);
+    this.db = this.client.db("visitors_analytics");
+  }
+
+  async initialize(): Promise<void> {
+    if (!this.initialized) {
+      await this.client.connect();
+      this.initialized = true;
+      console.log("Connected to MongoDB successfully");
+    }
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    await this.initialize();
+    const user = await this.db.collection("users").findOne({ id });
+    if (!user) return undefined;
+    return {
+      id: user.id,
+      username: user.username,
+      password: user.password,
+    };
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    await this.initialize();
+    const user = await this.db.collection("users").findOne({ username });
+    if (!user) return undefined;
+    return {
+      id: user.id,
+      username: user.username,
+      password: user.password,
+    };
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    await this.initialize();
+    const id = randomUUID();
+    const user: User = { ...insertUser, id };
+    await this.db.collection("users").insertOne(user);
+    return user;
+  }
+
+  async trackVisitor(insertVisitor: InsertVisitor): Promise<Visitor> {
+    await this.initialize();
+    const id = randomUUID();
+    const visitor: Visitor = {
+      id,
+      userId: insertVisitor.userId || null,
+      page: insertVisitor.page,
+      referrer: insertVisitor.referrer || null,
+      userAgent: insertVisitor.userAgent || null,
+      ip: insertVisitor.ip || null,
+      timestamp: new Date(),
+    };
+    await this.db.collection("visitors").insertOne(visitor);
+    return visitor;
+  }
+
+  async getAllVisitors(): Promise<Visitor[]> {
+    await this.initialize();
+    const visitors = await this.db.collection("visitors").find({}).toArray();
+    return visitors.map(v => ({
+      id: v.id,
+      userId: v.userId,
+      page: v.page,
+      referrer: v.referrer,
+      userAgent: v.userAgent,
+      ip: v.ip,
+      timestamp: v.timestamp,
+    }));
+  }
+
+  async getVisitorCounts(period?: 'today' | 'week' | 'month' | 'year'): Promise<VisitorCounts | Partial<VisitorCounts>> {
+    await this.initialize();
+    const now = new Date();
+    
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    if (period) {
+      let startDate: Date;
+      switch (period) {
+        case 'today': startDate = startOfToday; break;
+        case 'week': startDate = startOfWeek; break;
+        case 'month': startDate = startOfMonth; break;
+        case 'year': startDate = startOfYear; break;
+      }
+      
+      const count = await this.db.collection("visitors").countDocuments({
+        timestamp: { $gte: startDate }
+      });
+      
+      return { [period]: count };
+    }
+
+    // Get all counts in parallel
+    const [todayCount, weekCount, monthCount, yearCount] = await Promise.all([
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfToday } }),
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfWeek } }),
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfMonth } }),
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfYear } }),
+    ]);
+
+    return {
+      today: todayCount,
+      week: weekCount,
+      month: monthCount,
+      year: yearCount,
+    };
+  }
+}
+
+// Use MongoDB if MONGODB_URI is set, otherwise use DatabaseStorage if DATABASE_URL is set, otherwise fall back to JsonFileStorage
+export const storage = process.env.MONGODB_URI
+  ? new MongoDBStorage(process.env.MONGODB_URI)
+  : process.env.DATABASE_URL 
+    ? new DatabaseStorage() 
+    : new JsonFileStorage();
