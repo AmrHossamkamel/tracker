@@ -18,16 +18,18 @@ Preferred communication style: Simple, everyday language.
 
 ## Backend Architecture
 - **Framework**: Express.js with TypeScript for the REST API server
-- **Storage Layer**: JsonFileStorage implementation with file-based persistence
-- **Storage Pattern**: Abstract storage interface (IStorage) with JSON file and in-memory implementations
+- **Storage Layer**: Multiple storage implementations - MongoDB (primary), PostgreSQL (DatabaseStorage), JSON files (JsonFileStorage), and in-memory (MemStorage)
+- **Storage Pattern**: Abstract storage interface (IStorage) with flexible backend implementations
 - **API Design**: RESTful endpoints for visitor tracking and analytics data retrieval
 - **Middleware**: Custom logging middleware for API request monitoring
 
 ## Data Storage Solutions
-- **Primary Storage**: JSON file-based storage system using JsonFileStorage class
-- **Storage Location**: All data is stored in `data/visitors_data.json` file
+- **Primary Storage**: MongoDB database using MongoDBStorage class with native MongoDB driver
+- **Database**: MongoDB Atlas cluster - `visitors_analytics` database with `users` and `visitors` collections
+- **Alternative Storage**: PostgreSQL with Drizzle ORM (DatabaseStorage), JSON file-based storage (JsonFileStorage), or in-memory storage (MemStorage)
 - **Schema Management**: Shared schema definitions between frontend and backend using Zod
-- **Data Persistence**: Automatic file-based persistence with atomic write operations
+- **Data Persistence**: MongoDB handles automatic persistence with lazy initialization pattern
+- **Connection**: Environment-based storage selection via MONGODB_URI, DATABASE_URL, or fallback to JSON files
 
 ## Data Schema
 - **Users Data**: Basic user management stored as key-value pairs in JSON format
