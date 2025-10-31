@@ -1,0 +1,591 @@
+// server/index.ts
+import express2 from "express";
+import cors from "cors";
+
+// server/routes.ts
+import { createServer } from "http";
+
+// shared/schema.ts
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+var users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull()
+});
+var visitors = pgTable("visitors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  // Optional - for tracking specific users
+  page: text("page").notNull(),
+  referrer: text("referrer"),
+  userAgent: text("user_agent"),
+  ip: varchar("ip"),
+  timestamp: timestamp("timestamp").notNull().defaultNow()
+});
+var insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true
+});
+var insertVisitorSchema = createInsertSchema(visitors).omit({
+  id: true,
+  timestamp: true
+});
+var trackVisitorSchema = insertVisitorSchema.extend({
+  userId: z.string().optional(),
+  page: z.string().min(1),
+  referrer: z.string().optional(),
+  userAgent: z.string().optional(),
+  ip: z.string().optional()
+});
+
+// server/storage.ts
+import { randomUUID } from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+import { eq, gte, sql as sql2 } from "drizzle-orm";
+import { MongoClient } from "mongodb";
+var JsonFileStorage = class {
+  dataFilePath;
+  data;
+  constructor(dataFilePath = "data/visitors_data.json") {
+    this.dataFilePath = dataFilePath;
+    this.data = {
+      users: /* @__PURE__ */ new Map(),
+      visitors: /* @__PURE__ */ new Map()
+    };
+    this.loadData();
+  }
+  async ensureDataDirectory() {
+    const dir = path.dirname(this.dataFilePath);
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch (error) {
+    }
+  }
+  async loadData() {
+    try {
+      await this.ensureDataDirectory();
+      const data = await fs.readFile(this.dataFilePath, "utf-8");
+      const parsedData = JSON.parse(data);
+      this.data.users = new Map(parsedData.users || []);
+      this.data.visitors = new Map(parsedData.visitors || []);
+    } catch (error) {
+      this.data = {
+        users: /* @__PURE__ */ new Map(),
+        visitors: /* @__PURE__ */ new Map()
+      };
+      await this.saveData();
+    }
+  }
+  async saveData() {
+    try {
+      await this.ensureDataDirectory();
+      const dataToSave = {
+        users: Array.from(this.data.users.entries()),
+        visitors: Array.from(this.data.visitors.entries())
+      };
+      await fs.writeFile(this.dataFilePath, JSON.stringify(dataToSave, null, 2));
+    } catch (error) {
+      console.error("Error saving data to JSON file:", error);
+    }
+  }
+  async getUser(id) {
+    return this.data.users.get(id);
+  }
+  async getUserByUsername(username) {
+    return Array.from(this.data.users.values()).find(
+      (user) => user.username === username
+    );
+  }
+  async createUser(insertUser) {
+    const id = randomUUID();
+    const user = { ...insertUser, id };
+    this.data.users.set(id, user);
+    await this.saveData();
+    return user;
+  }
+  async trackVisitor(insertVisitor) {
+    const id = randomUUID();
+    const visitor = {
+      userId: insertVisitor.userId || null,
+      page: insertVisitor.page,
+      referrer: insertVisitor.referrer || null,
+      userAgent: insertVisitor.userAgent || null,
+      ip: insertVisitor.ip || null,
+      id,
+      timestamp: /* @__PURE__ */ new Date()
+    };
+    this.data.visitors.set(id, visitor);
+    await this.saveData();
+    return visitor;
+  }
+  async getAllVisitors() {
+    return Array.from(this.data.visitors.values());
+  }
+  async getVisitorCounts(period) {
+    const now = /* @__PURE__ */ new Date();
+    const visitors2 = Array.from(this.data.visitors.values());
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const counts = {
+      today: visitors2.filter((v) => v.timestamp && new Date(v.timestamp) >= startOfToday).length,
+      week: visitors2.filter((v) => v.timestamp && new Date(v.timestamp) >= startOfWeek).length,
+      month: visitors2.filter((v) => v.timestamp && new Date(v.timestamp) >= startOfMonth).length,
+      year: visitors2.filter((v) => v.timestamp && new Date(v.timestamp) >= startOfYear).length
+    };
+    if (period) {
+      return { [period]: counts[period] };
+    }
+    return counts;
+  }
+};
+var DatabaseStorage = class {
+  db;
+  constructor() {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL environment variable is required");
+    }
+    const sql3 = neon(process.env.DATABASE_URL);
+    this.db = drizzle(sql3);
+  }
+  async getUser(id) {
+    const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+  async getUserByUsername(username) {
+    const result = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+  async createUser(insertUser) {
+    const result = await this.db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+  async trackVisitor(insertVisitor) {
+    const result = await this.db.insert(visitors).values(insertVisitor).returning();
+    return result[0];
+  }
+  async getAllVisitors() {
+    return await this.db.select().from(visitors);
+  }
+  async getVisitorCounts(period) {
+    const now = /* @__PURE__ */ new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    if (period) {
+      let startDate;
+      switch (period) {
+        case "today":
+          startDate = startOfToday;
+          break;
+        case "week":
+          startDate = startOfWeek;
+          break;
+        case "month":
+          startDate = startOfMonth;
+          break;
+        case "year":
+          startDate = startOfYear;
+          break;
+      }
+      const result = await this.db.select({ count: sql2`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startDate));
+      return { [period]: result[0].count };
+    }
+    const [todayResult, weekResult, monthResult, yearResult] = await Promise.all([
+      this.db.select({ count: sql2`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfToday)),
+      this.db.select({ count: sql2`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfWeek)),
+      this.db.select({ count: sql2`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfMonth)),
+      this.db.select({ count: sql2`count(*)::int` }).from(visitors).where(gte(visitors.timestamp, startOfYear))
+    ]);
+    return {
+      today: todayResult[0].count,
+      week: weekResult[0].count,
+      month: monthResult[0].count,
+      year: yearResult[0].count
+    };
+  }
+};
+var MongoDBStorage = class {
+  client;
+  db;
+  initialized = false;
+  constructor(connectionString) {
+    this.client = new MongoClient(connectionString);
+    this.db = this.client.db("visitors_analytics");
+  }
+  async initialize() {
+    if (!this.initialized) {
+      await this.client.connect();
+      this.initialized = true;
+      console.log("Connected to MongoDB successfully");
+    }
+  }
+  async getUser(id) {
+    await this.initialize();
+    const user = await this.db.collection("users").findOne({ id });
+    if (!user) return void 0;
+    return {
+      id: user.id,
+      username: user.username,
+      password: user.password
+    };
+  }
+  async getUserByUsername(username) {
+    await this.initialize();
+    const user = await this.db.collection("users").findOne({ username });
+    if (!user) return void 0;
+    return {
+      id: user.id,
+      username: user.username,
+      password: user.password
+    };
+  }
+  async createUser(insertUser) {
+    await this.initialize();
+    const id = randomUUID();
+    const user = { ...insertUser, id };
+    await this.db.collection("users").insertOne(user);
+    return user;
+  }
+  async trackVisitor(insertVisitor) {
+    await this.initialize();
+    const id = randomUUID();
+    const visitor = {
+      id,
+      userId: insertVisitor.userId || null,
+      page: insertVisitor.page,
+      referrer: insertVisitor.referrer || null,
+      userAgent: insertVisitor.userAgent || null,
+      ip: insertVisitor.ip || null,
+      timestamp: /* @__PURE__ */ new Date()
+    };
+    await this.db.collection("visitors").insertOne(visitor);
+    return visitor;
+  }
+  async getAllVisitors() {
+    await this.initialize();
+    const visitors2 = await this.db.collection("visitors").find({}).toArray();
+    return visitors2.map((v) => ({
+      id: v.id,
+      userId: v.userId,
+      page: v.page,
+      referrer: v.referrer,
+      userAgent: v.userAgent,
+      ip: v.ip,
+      timestamp: v.timestamp
+    }));
+  }
+  async getVisitorCounts(period) {
+    await this.initialize();
+    const now = /* @__PURE__ */ new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    if (period) {
+      let startDate;
+      switch (period) {
+        case "today":
+          startDate = startOfToday;
+          break;
+        case "week":
+          startDate = startOfWeek;
+          break;
+        case "month":
+          startDate = startOfMonth;
+          break;
+        case "year":
+          startDate = startOfYear;
+          break;
+      }
+      const count = await this.db.collection("visitors").countDocuments({
+        timestamp: { $gte: startDate }
+      });
+      return { [period]: count };
+    }
+    const [todayCount, weekCount, monthCount, yearCount] = await Promise.all([
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfToday } }),
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfWeek } }),
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfMonth } }),
+      this.db.collection("visitors").countDocuments({ timestamp: { $gte: startOfYear } })
+    ]);
+    return {
+      today: todayCount,
+      week: weekCount,
+      month: monthCount,
+      year: yearCount
+    };
+  }
+};
+var storage = process.env.MONGODB_URI ? new MongoDBStorage(process.env.MONGODB_URI) : process.env.DATABASE_URL ? new DatabaseStorage() : new JsonFileStorage();
+
+// server/routes.ts
+import { z as z2 } from "zod";
+async function registerRoutes(app2) {
+  app2.post("/api/visitors/track", async (req, res) => {
+    try {
+      const startTime = Date.now();
+      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      const validatedData = trackVisitorSchema.parse(body);
+      const ip = validatedData.ip || req.ip || req.connection.remoteAddress || "unknown";
+      const userAgent = validatedData.userAgent || req.get("User-Agent") || "unknown";
+      const visitor = await storage.trackVisitor({
+        userId: validatedData.userId,
+        page: validatedData.page,
+        referrer: validatedData.referrer,
+        userAgent,
+        ip
+      });
+      const processingTime = Date.now() - startTime;
+      res.json({
+        status: "success",
+        message: "Visitor tracked successfully",
+        visitor_id: visitor.id,
+        metadata: {
+          processing_time: `${processingTime}ms`
+        }
+      });
+    } catch (error) {
+      if (error instanceof z2.ZodError) {
+        res.status(400).json({
+          status: "error",
+          message: "Invalid request data",
+          errors: error.errors
+        });
+      } else {
+        res.status(500).json({
+          status: "error",
+          message: "Internal server error"
+        });
+      }
+    }
+  });
+  app2.get("/api/visitors/count", async (req, res) => {
+    try {
+      const startTime = Date.now();
+      const period = req.query.period;
+      const validPeriods = ["today", "week", "month", "year", "all"];
+      if (period && !validPeriods.includes(period)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid period parameter. Must be one of: today, week, month, year, all"
+        });
+      }
+      const requestedPeriod = period === "all" ? void 0 : period;
+      const counts = await storage.getVisitorCounts(requestedPeriod);
+      const processingTime = Date.now() - startTime;
+      res.json({
+        status: "success",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        data: counts,
+        metadata: {
+          endpoint: "/api/visitors/count",
+          period: period || "all",
+          processing_time: `${processingTime}ms`
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: "error",
+        message: "Internal server error"
+      });
+    }
+  });
+  app2.get("/api/visitors/all", async (req, res) => {
+    try {
+      const visitors2 = await storage.getAllVisitors();
+      res.json({
+        status: "success",
+        data: visitors2,
+        count: visitors2.length
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: "error",
+        message: "Internal server error"
+      });
+    }
+  });
+  const httpServer = createServer(app2);
+  return httpServer;
+}
+
+// server/vite.ts
+import express from "express";
+import fs2 from "fs";
+import path3 from "path";
+import { createServer as createViteServer, createLogger } from "vite";
+
+// vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path2 from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+var vite_config_default = defineConfig({
+  plugins: [
+    react(),
+    runtimeErrorOverlay(),
+    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
+      await import("@replit/vite-plugin-cartographer").then(
+        (m) => m.cartographer()
+      )
+    ] : []
+  ],
+  resolve: {
+    alias: {
+      "@": path2.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path2.resolve(import.meta.dirname, "shared"),
+      "@assets": path2.resolve(import.meta.dirname, "attached_assets")
+    }
+  },
+  root: path2.resolve(import.meta.dirname, "client"),
+  build: {
+    outDir: path2.resolve(import.meta.dirname, "dist/public"),
+    emptyOutDir: true
+  },
+  server: {
+    fs: {
+      strict: true,
+      deny: ["**/.*"]
+    }
+  }
+});
+
+// server/vite.ts
+import { nanoid } from "nanoid";
+var viteLogger = createLogger();
+function log(message, source = "express") {
+  const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
+async function setupVite(app2, server) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server },
+    allowedHosts: true
+  };
+  const vite = await createViteServer({
+    ...vite_config_default,
+    configFile: false,
+    customLogger: {
+      ...viteLogger,
+      error: (msg, options) => {
+        viteLogger.error(msg, options);
+        process.exit(1);
+      }
+    },
+    server: serverOptions,
+    appType: "custom"
+  });
+  app2.use(vite.middlewares);
+  app2.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
+    try {
+      const clientTemplate = path3.resolve(
+        import.meta.dirname,
+        "..",
+        "client",
+        "index.html"
+      );
+      let template = await fs2.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+}
+function serveStatic(app2) {
+  const distPath = path3.resolve(import.meta.dirname, "public");
+  if (!fs2.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    );
+  }
+  app2.use(express.static(distPath));
+  app2.use("*", (_req, res) => {
+    res.sendFile(path3.resolve(distPath, "index.html"));
+  });
+}
+
+// server/index.ts
+var app = express2();
+app.use(cors({
+  origin: "*",
+  // أو حط دومين الووردبريس بتاعك هنا
+  methods: ["POST", "GET", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+app.use(express2.text({ type: "text/plain" }));
+app.use(express2.json());
+app.use(express2.urlencoded({ extended: false }));
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path4 = req.path;
+  let capturedJsonResponse = void 0;
+  const originalResJson = res.json;
+  res.json = function(bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path4.startsWith("/api")) {
+      let logLine = `${req.method} ${path4} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "\u2026";
+      }
+      log(logLine);
+    }
+  });
+  next();
+});
+(async () => {
+  const server = await registerRoutes(app);
+  app.use((err, _req, res, _next) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+    res.status(status).json({ message });
+    throw err;
+  });
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+  const port = parseInt(process.env.PORT || "5000", 10);
+  server.listen({
+    port,
+    host: "0.0.0.0",
+    reusePort: true
+  }, () => {
+    log(`serving on port ${port}`);
+  });
+})();
